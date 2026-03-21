@@ -171,12 +171,3 @@ nutrabay/
 
 ---
 
-## 📊 Scoring Rubric Coverage
-
-| Criteria | How This Project Addresses It |
-|:---|:---|
-| **Practical Execution (30%)** | Working end-to-end system. Upload → train → quiz → certify. REST API for automation. |
-| **Output Quality (25%)** | Two-pass verified quiz, interactive scenarios, professional slide deck |
-| **Problem Understanding (20%)** | Goes beyond "generate summary" to address the real problem: employees don't retain passive training |
-| **Simplicity & Clarity (15%)** | Clean module separation, documented code, comprehensive tests |
-| **Creativity (10%)** | Scenario Simulator, Hindi TTS audio, PDF certificates, reveal.js slides |
