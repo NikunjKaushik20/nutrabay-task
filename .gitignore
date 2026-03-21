@@ -1,0 +1,43 @@
+# Environment & secrets
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Streamlit
+.streamlit/
+
+# Temp files
+*.tmp
+*.bak
+
+# Video files (demo recordings)
+*.mp4
+*.webp
+
+# Gemini agent files
+.gemini/
+implementation_plan.md

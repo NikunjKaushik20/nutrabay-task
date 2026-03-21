@@ -1,0 +1,139 @@
+# 10/10 Upgrade — Implementation Plan
+
+Fixing all issues from the review: hollow AI logic, WAV concat bug, zero tests, fragile parsing, silent errors, and missing edge case handling.
+
+---
+
+## Proposed Changes
+
+### Core AI Engine
+
+#### [MODIFY] [ai_engine.py](file:///d:/nutrabay/core/ai_engine.py)
+
+**Problem:** Single truncate-and-pray GPT call with no retry, no post-processing, no quiz verification.
+
+**Changes:**
+1. **Smart SOP chunking** — replace `sop_text[:8000]` truncation with intelligent chunking that processes long SOPs in sections, then merges results
+2. **Retry with exponential backoff** — wrap API call in retry logic (3 attempts) for transient failures
+3. **Two-pass quiz verification** — after generating content, make a second GPT call specifically to verify each quiz answer is correct and fix any wrong ones
+4. **Deeper validation** — validate quiz options format, step ordering, non-empty content fields
+5. **Mark sample output clearly** — add `"is_sample": true` flag to hardcoded sample so UI can display a badge
+
+---
+
+### SOP Preprocessor (New)
+
+#### [NEW] [sop_preprocessor.py](file:///d:/nutrabay/core/sop_preprocessor.py)
+
+**Problem:** Raw text is dumped straight to GPT with `[Page X]` noise. No structure extraction.
+
+**Changes:**
+1. Strip `[Page X]` markers before AI processing  
+2. Detect headings/sections using regex heuristics (ALL CAPS lines, numbered sections, lines ending with `:`)
+3. Build a structured outline `{sections: [{heading, content}]}` before sending to GPT
+4. Send the structured outline in the prompt so GPT has better context
+
+---
+
+### PDF Parser
+
+#### [MODIFY] [pdf_parser.py](file:///d:/nutrabay/core/pdf_parser.py)
+
+**Changes:**
+1. Remove `[Page X]` prefix injection (or make it optional)
+2. Add `extract_with_metadata()` that returns page-level metadata alongside text
+3. Basic table detection — if pdfplumber finds tables, include them as formatted text
+
+---
+
+### Sarvam Integration
+
+#### [MODIFY] [sarvam.py](file:///d:/nutrabay/core/sarvam.py)
+
+**Problem:** WAV concatenation by byte joining is broken. Silent error swallowing.
+
+**Changes:**
+1. **Fix WAV concat** — use Python's built-in `wave` module to properly merge WAV segments (read headers, concatenate raw PCM data, write single valid WAV file)
+2. **Add logging** — replace `except Exception: pass` with `logging.warning()` calls
+3. **Add user-facing error feedback** — return error info alongside None so UI can display what went wrong
+
+---
+
+### Certificate
+
+#### [MODIFY] [certificate.py](file:///d:/nutrabay/core/certificate.py)
+
+**Changes:**
+1. Add unique certificate ID (UUID4) printed on the certificate
+2. Include the certificate ID in the returned dict so it can be displayed in UI
+
+---
+
+### App
+
+#### [MODIFY] [app.py](file:///d:/nutrabay/core/../app.py)
+
+**Changes:**
+1. **Certificate min score** — disable certificate download button if quiz not taken yet (score=0); show warning
+2. **Sample badge** — show a `⚠️ Sample Data` indicator when using hardcoded sample
+3. **Progress pipeline** — replace single spinner with multi-step progress: "Extracting text → Preprocessing → Generating content → Verifying quiz"
+4. **Use preprocessor** — integrate `sop_preprocessor` in the upload pipeline
+
+---
+
+### Tests (New)
+
+#### [NEW] [tests/test_pdf_parser.py](file:///d:/nutrabay/tests/test_pdf_parser.py)
+
+- Test [extract_text_from_pdf](file:///d:/nutrabay/core/pdf_parser.py#10-42) with the bundled [data/nutrabay_inbound_sop.pdf](file:///d:/nutrabay/data/nutrabay_inbound_sop.pdf)
+- Test [_clean_text](file:///d:/nutrabay/core/pdf_parser.py#44-54) with edge cases (excessive whitespace, empty text)
+- Test `FileNotFoundError` on missing file
+
+#### [NEW] [tests/test_ai_engine.py](file:///d:/nutrabay/tests/test_ai_engine.py)
+
+- Test [_validate_structure](file:///d:/nutrabay/core/ai_engine.py#118-137) with valid and invalid data dicts
+- Test [get_sample_output](file:///d:/nutrabay/core/ai_engine.py#139-276) structure matches expected schema
+- Test the new deeper validation catches bad quiz formats
+
+#### [NEW] [tests/test_certificate.py](file:///d:/nutrabay/tests/test_certificate.py)
+
+- Test [analyse_quiz_results](file:///d:/nutrabay/core/certificate.py#31-77) scoring: perfect score, zero score, partial score, edge cases
+- Test [generate_certificate](file:///d:/nutrabay/core/certificate.py#79-245) returns valid PDF bytes (check PDF header bytes)
+
+#### [NEW] [tests/test_sop_preprocessor.py](file:///d:/nutrabay/tests/test_sop_preprocessor.py)
+
+- Test section extraction from sample text with headings
+- Test `[Page X]` marker stripping
+- Test edge case: text with no detectable headings
+
+---
+
+### Requirements
+
+#### [MODIFY] [requirements.txt](file:///d:/nutrabay/requirements.txt)
+
+Add `pytest` for test suite.
+
+---
+
+## Verification Plan
+
+### Automated Tests
+
+Run the full test suite:
+```bash
+cd d:\nutrabay
+python -m pytest tests/ -v
+```
+
+All tests must pass. Tests are designed to run **without API keys** — they test PDF parsing, data validation, scoring, and preprocessing using local files and mocked data only.
+
+### Manual Verification
+
+1. **Restart the Streamlit app** and upload [data/nutrabay_inbound_sop.pdf](file:///d:/nutrabay/data/nutrabay_inbound_sop.pdf)
+2. Verify the multi-step progress bar shows during processing
+3. Check Summary, Training, Quiz, Skills, and Slides tabs all render correctly
+4. Complete the quiz, verify scoring works
+5. Download a certificate — verify it has a unique ID
+6. Switch to Hindi — verify translation still works
+7. Try generating audio — verify it plays correctly (if Sarvam key is valid)
